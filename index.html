@@ -166,6 +166,14 @@ svg{display:block}
 .toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;z-index:60;max-width:88%;text-align:center;display:none}
 .toast.show{display:block}
 </style>
+<meta name="theme-color" content="#0E171C">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MLD">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 </head>
 <body>
 
@@ -709,12 +717,26 @@ function chatMenu(){
   },true));
   openSheet(nodes);
 }
+let installEv=null;
+window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();installEv=e;});
+window.addEventListener("appinstalled",()=>{installEv=null;toast("MLD est installée sur ton téléphone.");});
 $("#btnMe").addEventListener("click",()=>{
-  openSheet([
+  const nodes=[
     h("h3",null,me.name),
-    h("p",{class:"hint"},me.email+" — c’est avec cette adresse que tes amis peuvent te trouver."),
-    opt("out","Se déconnecter",()=>signOut(auth),true)
-  ]);
+    h("p",{class:"hint"},me.email+" — c’est avec cette adresse que tes amis peuvent te trouver.")
+  ];
+  const standalone=window.matchMedia("(display-mode: standalone)").matches||window.navigator.standalone;
+  if(!standalone){
+    if(installEv){
+      nodes.push(opt("plus","Installer MLD sur mon téléphone",()=>{installEv.prompt();installEv=null;}));
+    }else if(/iphone|ipad|ipod/i.test(navigator.userAgent)){
+      nodes.push(h("p",{class:"hint"},"Pour installer MLD sur iPhone : touche le bouton Partager de Safari, puis « Sur l’écran d’accueil »."));
+    }else{
+      nodes.push(h("p",{class:"hint"},"Pour installer MLD : menu ⋮ du navigateur, puis « Installer l’application » ou « Ajouter à l’écran d’accueil »."));
+    }
+  }
+  nodes.push(opt("out","Se déconnecter",()=>signOut(auth),true));
+  openSheet(nodes);
 });
 
 /* ---------- Nouvelle conversation ---------- */
@@ -813,6 +835,9 @@ $("#btnNew").addEventListener("click",newChatSheet);
 $("#icoSearch").innerHTML=ico("search",18);
 $("#search").addEventListener("input",e=>{queryText=e.target.value;renderList();});
 renderChips();
+</script>
+<script>
+if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){});});}
 </script>
 </body>
 </html>
