@@ -196,6 +196,11 @@ svg{display:block}
 .chrow .nm small{color:var(--muted)}
 .chrow input[type=checkbox]{width:20px;height:20px;accent-color:var(--mint)}
 .mini{padding:7px 14px;border-radius:999px;background:var(--blue);color:var(--onaccent);font-size:14px;font-weight:500}
+.profhead{display:flex;flex-direction:column;align-items:center;gap:8px;padding:6px 0 16px;text-align:center}
+.profhead h3{margin:2px 0 0;font-size:20px}
+.profhead p{margin:0;color:var(--muted);font-size:14px;max-width:280px}
+.whobtn{background:none;border:0;padding:0;display:flex;align-items:center;gap:6px;cursor:pointer;color:inherit;font:inherit}
+.headtap{display:flex;align-items:center;gap:10px;flex:1;min-width:0;text-align:left;background:none;border:0;padding:0;color:inherit;font:inherit}
 .toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;z-index:90;max-width:88%;text-align:center;display:none}
 .toast.show{display:block}
 
@@ -835,8 +840,9 @@ function renderHead(){
   const head=$("#head");head.innerHTML="";
   head.append(
     h("button",{class:"icon-btn back","aria-label":"Retour",html:ico("back"),onclick:()=>setView("list")}),
-    chatAvatar(c,40),
-    h("div",{class:"titles"},h("div",{class:"t1"},cname(c)),h("div",{class:"t2"},subtitle(c))),
+    c.type==="perso"
+      ? h("button",{class:"headtap","aria-label":"Voir le profil de "+cname(c),onclick:()=>profileSheet(otherUid(c),c.names&&c.names[otherUid(c)])},chatAvatar(c,40),h("div",{class:"titles"},h("div",{class:"t1"},cname(c)),h("div",{class:"t2"},subtitle(c))))
+      : h("div",{class:"headtap"},chatAvatar(c,40),h("div",{class:"titles"},h("div",{class:"t1"},cname(c)),h("div",{class:"t2"},subtitle(c)))),
     h("button",{class:"icon-btn","aria-label":fav?"Retirer des favoris":"Ajouter aux favoris",html:ico("star",22,fav),onclick:()=>{
       favs=fav?favs.filter(x=>x!==c.id):favs.concat([c.id]);lsSet("mld-fav",favs);renderHead();renderList();}}),
     h("button",{class:"icon-btn","aria-label":"Plus d’options",html:ico("more"),onclick:chatMenu})
@@ -862,7 +868,7 @@ function renderMsgs(){
     const b=h("button",{class:"bubble "+(mine?"me":"them"),"aria-label":"Options du message",onclick:()=>msgMenu(m)});
     if(c.type==="groupe"&&!mine){
       const nm=userName(m.from,m.fromName);
-      const w=h("div",{class:"who"},userAvatar(m.from,22,m.fromName),h("span",null,nm));
+      const w=h("button",{class:"who whobtn",onclick:ev=>{ev.stopPropagation();profileSheet(m.from,m.fromName);}},userAvatar(m.from,22,m.fromName),h("span",null,nm));
       w.lastChild.style.color=AVC[hashColor(nm)];
       b.append(w);
     }
@@ -1038,7 +1044,7 @@ function msgMenu(m){
   openSheet(nodes);
 }
 function personRow(uid,fb,sub){
-  return h("div",{class:"chrow"},userAvatar(uid,36,fb),h("div",{class:"nm"},h("b",null,userName(uid,fb)),sub?h("small",null,sub):null));
+  return h("button",{class:"chrow",style:"width:100%;text-align:left",onclick:()=>profileSheet(uid,fb)},userAvatar(uid,36,fb),h("div",{class:"nm"},h("b",null,userName(uid,fb)),sub?h("small",null,sub):null));
 }
 function msgInfo(c,m){
   const others=(c.members||[]).filter(u=>u!==me.uid);
@@ -1509,6 +1515,30 @@ $("#avatarFile").addEventListener("change",async e=>{
     toast("Photo de profil mise à jour.");
   }catch(er){toast(errText(er));}
 });
+
+/* ---------- Profil d’un contact ---------- */
+async function openOrCreatePerso(uid,fallbackName){
+  const nm=userName(uid,fallbackName);
+  try{
+    const id=[me.uid,uid].sort().join("_");
+    await setDoc(doc(db,"chats",id),{type:"perso",owner:me.uid,members:[me.uid,uid],names:{[me.uid]:me.name,[uid]:nm}},{merge:true});
+    hidden=hidden.filter(x=>x!==id);lsSet("mld-hidden",hidden);
+    closeSheet();openChat(id);
+  }catch(e){toast(errText(e));}
+}
+function profileSheet(uid,fallbackName){
+  if(!uid)return;
+  watchUser(uid);
+  const nm=userName(uid,fallbackName);
+  const u=usersCache[uid]||{};
+  const nodes=[h("div",{class:"profhead"},avEl({name:nm,photo:userPhoto(uid),size:96}),h("h3",null,nm),u.bio?h("p",null,u.bio):null)];
+  if(uid!==me.uid){
+    nodes.push(opt("reply","Envoyer un message",()=>openOrCreatePerso(uid,fallbackName)));
+    nodes.push(opt("flag","Signaler",()=>reportSheet({kind:"user",uid:uid,name:nm})));
+    nodes.push(blockedSet[uid]?opt("ban","Débloquer",()=>unblockUser(uid)):opt("ban","Bloquer",()=>askBlock(uid,nm),true));
+  }
+  openSheet(nodes);
+}
 
 /* ---------- Blocage, signalement, textes légaux ---------- */
 async function blockUser(uid){
