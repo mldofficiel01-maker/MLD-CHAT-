@@ -3,6 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MLD — Application de messagerie</title>
+<meta name="description" content="MLD est une application de messagerie gratuite : discussions, groupes, canaux et stories au même endroit.">
+<meta name="robots" content="index,follow">
+<link rel="canonical" href="https://mldofficiel01-maker.github.io/MLD-CHAT-/">
+<meta property="og:title" content="MLD — Application de messagerie">
+<meta property="og:description" content="Discussions, groupes, canaux et stories au même endroit.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://mldofficiel01-maker.github.io/MLD-CHAT-/">
+<meta property="og:image" content="https://mldofficiel01-maker.github.io/MLD-CHAT-/icon-512.png">
+<meta name="twitter:card" content="summary">
 <title>MLD</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -38,10 +48,13 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 svg{display:block}
 
 /* Connexion */
-#splash,#auth{position:fixed;inset:0;background:var(--bg);z-index:40;display:none;overflow-y:auto}
+#splash,#auth,#verify{position:fixed;inset:0;background:var(--bg);z-index:40;display:none;overflow-y:auto}
 #splash{place-items:center}
 #splash.show{display:grid}
-#auth.show{display:flex;align-items:center;justify-content:center;padding:24px 16px}
+#auth.show,#verify.show{display:flex;align-items:center;justify-content:center;padding:24px 16px}
+.terms{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(--muted);margin:0 0 12px}
+.card .terms input{width:18px;height:18px;padding:0;border-radius:4px;flex:none;margin-top:2px;accent-color:var(--mint)}
+.inl{color:var(--blue);text-decoration:underline;font-size:inherit}
 .card{width:100%;max-width:400px;background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:26px 22px}
 .card .logo{display:flex;justify-content:center;margin-bottom:6px}
 .card h1{margin:0;text-align:center;font-size:32px;letter-spacing:-.02em}
@@ -273,9 +286,22 @@ svg{display:block}
     <label class="field" id="nameField" style="display:none"><span>Pseudo</span><input id="aName" type="text" maxlength="30" autocomplete="nickname" placeholder="Ton prénom ou pseudo"></label>
     <label class="field"><span>Adresse e-mail</span><input id="aMail" type="email" autocomplete="email" inputmode="email" placeholder="toi@exemple.com"></label>
     <label class="field"><span>Mot de passe</span><input id="aPass" type="password" autocomplete="current-password" placeholder="6 caractères minimum"></label>
+    <div class="terms" id="termsRow" style="display:none"><input type="checkbox" id="aTerms" aria-label="J’accepte les conditions"><span>J’ai 16 ans ou plus et j’accepte les <button type="button" class="inl" id="aTermsLink">conditions d’utilisation</button> et la <button type="button" class="inl" id="aPrivLink">politique de confidentialité</button>.</span></div>
     <p class="err" id="aErr" role="alert"></p>
     <button class="primary" id="aGo">Se connecter</button>
     <button class="linkbtn" id="aReset">Mot de passe oublié ?</button>
+  </div>
+</div>
+
+<div id="verify">
+  <div class="card">
+    <div class="logo" id="vLogo"></div>
+    <h1>Vérifie ton e-mail</h1>
+    <p class="sub">Nous avons envoyé un lien de confirmation à <b id="vMail"></b>. Ouvre-le, puis reviens ici. Regarde aussi tes courriers indésirables.</p>
+    <p class="err" id="vMsg" role="status" style="color:var(--muted)"></p>
+    <button class="primary" id="vCheck">J’ai confirmé mon e-mail</button>
+    <button class="linkbtn" id="vResend">Renvoyer l’e-mail</button>
+    <button class="linkbtn" id="vOut">Se déconnecter</button>
   </div>
 </div>
 
@@ -327,8 +353,8 @@ svg{display:block}
 
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import {getAuth,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut,updateProfile,sendPasswordResetEmail,deleteUser} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import {getFirestore,collection,doc,setDoc,addDoc,updateDoc,deleteDoc,getDocs,onSnapshot,query,where,orderBy,limit,limitToLast,arrayUnion,arrayRemove,deleteField} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import {getAuth,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut,updateProfile,sendPasswordResetEmail,deleteUser,sendEmailVerification} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import {getFirestore,collection,doc,setDoc,addDoc,updateDoc,deleteDoc,getDoc,getDocs,onSnapshot,query,where,orderBy,limit,limitToLast,arrayUnion,arrayRemove,deleteField} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 const firebaseConfig={
   apiKey:"AIzaSyCedmoez5kS3weAR5C6nlQHg9LXW_Qb8G8",
@@ -383,6 +409,8 @@ const ICONS={
   user:'<circle cx="12" cy="8" r="4"/><path d="M4 20c1-4 4-6 8-6s7 2 8 6"/>',
   out:'<path d="M14 4h4a2 2 0 012 2v12a2 2 0 01-2 2h-4M10 8l-4 4 4 4M6 12h10"/>',
   eye:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  flag:'<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
+  ban:'<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>',
   cam:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   gear:'<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>'
 };
@@ -424,6 +452,7 @@ function errText(e){
     "auth/too-many-requests":"Trop d’essais. Réessaie dans quelques minutes.",
     "auth/requires-recent-login":"Pour ta sécurité, déconnecte-toi, reconnecte-toi, puis réessaie.",
     "permission-denied":"Accès refusé. Vérifie les règles de sécurité dans Firebase.",
+    "auth/user-token-expired":"Ta session a expiré. Reconnecte-toi.",
     "unavailable":"Pas de connexion. Réessaie."
   };
   return map[c]||map[c.replace("firestore/","")]||"Une erreur est survenue ("+(c||"inconnue")+").";
@@ -454,6 +483,7 @@ const usersCache={},userUnsubs={};
 let stories=[],sv=null;
 let initialChats=true,lastAtMap={},readsSig="",lastMarked={};
 let cleanedStories=false;
+let blockedSet={},unsubBlocks=null,sessionUid=null,verifyTimer=null,verifySentFor=null;
 
 const activeChat=()=>chats.find(c=>c.id===active)||null;
 function markRead(id){reads[id]=Date.now();lsSet("mld-read",reads);}
@@ -551,6 +581,7 @@ function setMode(m){
   $("#tabIn").setAttribute("aria-pressed",String(m==="in"));
   $("#tabUp").setAttribute("aria-pressed",String(m==="up"));
   $("#nameField").style.display=m==="up"?"block":"none";
+  $("#termsRow").style.display=m==="up"?"flex":"none";
   $("#aGo").textContent=m==="up"?"Créer mon compte":"Se connecter";
   $("#aPass").setAttribute("autocomplete",m==="up"?"new-password":"current-password");
   $("#aErr").textContent="";
@@ -562,6 +593,8 @@ async function submitAuth(){
   const err=$("#aErr");err.textContent="";err.style.color="var(--danger)";
   if(!mail||!pass){err.textContent="Remplis l’e-mail et le mot de passe.";return;}
   if(mode==="up"&&!nm){err.textContent="Choisis un pseudo.";return;}
+  if(mode==="up"&&!$("#aTerms").checked){err.textContent="Coche la case pour accepter les conditions.";return;}
+  if(mode==="up")lsSet("mld-terms",Date.now());
   const btn=$("#aGo");btn.disabled=true;
   try{
     if(mode==="up"){
@@ -587,36 +620,96 @@ function resetSession(){
   if(unsubChats){unsubChats();unsubChats=null;}
   if(unsubMsgs){unsubMsgs();unsubMsgs=null;}
   if(unsubStories){unsubStories();unsubStories=null;}
+  if(unsubBlocks){unsubBlocks();unsubBlocks=null;}
   Object.keys(userUnsubs).forEach(k=>{userUnsubs[k]();delete userUnsubs[k];delete usersCache[k];});
-  chats=[];msgs=[];stories=[];active=null;shownFor=null;sv=null;
+  chats=[];msgs=[];stories=[];blockedSet={};active=null;shownFor=null;sv=null;
   initialChats=true;lastAtMap={};readsSig="";lastMarked={};cleanedStories=false;
   $("#settings").classList.remove("open");
   $("#story").classList.remove("open");
 }
-onAuthStateChanged(auth,async user=>{
+function hideAllScreens(){
+  $("#auth").classList.remove("show");
+  $("#verify").classList.remove("show");
+  $("#app").style.display="none";
+}
+onAuthStateChanged(auth,user=>{handleUser(user);});
+async function handleUser(user){
   $("#splash").classList.remove("show");
+  clearInterval(verifyTimer);
   if(!user){
-    me=null;resetSession();
-    $("#app").style.display="none";
+    me=null;sessionUid=null;verifySentFor=null;resetSession();hideAllScreens();
     $("#auth").classList.add("show");
     return;
   }
-  const name=pendingName||user.displayName||(user.email||"Moi").split("@")[0];
+  if(!user.emailVerified){
+    if(sessionUid){me=null;sessionUid=null;resetSession();}
+    showVerify(user);
+    return;
+  }
+  await enterApp(user);
+}
+function showVerify(user){
+  hideAllScreens();
+  $("#verify").classList.add("show");
+  $("#vMail").textContent=user.email||"";
+  $("#vMsg").textContent="";
+  if(verifySentFor!==user.uid){verifySentFor=user.uid;sendEmailVerification(user).catch(()=>{});}
+  verifyTimer=setInterval(()=>checkVerified(false),4000);
+}
+async function checkVerified(manual){
+  const u=auth.currentUser;if(!u)return;
+  try{
+    await u.reload();
+    if(u.emailVerified){
+      clearInterval(verifyTimer);
+      await u.getIdToken(true);
+      handleUser(auth.currentUser);
+    }else if(manual){
+      $("#vMsg").textContent="Ton e-mail n’est pas encore confirmé. Ouvre le lien reçu, puis réessaie.";
+    }
+  }catch(e){if(manual)$("#vMsg").textContent=errText(e);}
+}
+$("#vCheck").addEventListener("click",()=>checkVerified(true));
+$("#vResend").addEventListener("click",async()=>{
+  const u=auth.currentUser;if(!u)return;
+  try{await sendEmailVerification(u);$("#vMsg").textContent="E-mail renvoyé à "+u.email+".";}
+  catch(e){$("#vMsg").textContent=(e&&e.code==="auth/too-many-requests")?"Patiente quelques minutes avant de redemander un e-mail.":errText(e);}
+});
+$("#vOut").addEventListener("click",()=>signOut(auth));
+
+async function enterApp(user){
+  if(sessionUid===user.uid&&me)return;
+  sessionUid=user.uid;
+  me={uid:user.uid,name:pendingName||user.displayName||(user.email||"Moi").split("@")[0],email:user.email||""};
   pendingName=null;
-  me={uid:user.uid,name:name,email:user.email||""};
-  $("#auth").classList.remove("show");
+  hideAllScreens();
   $("#app").style.display="grid";
   watchUser(me.uid);
   try{
-    await setDoc(doc(db,"users",me.uid),{email:me.email,emailLower:me.email.toLowerCase(),createdAt:Date.now()},{merge:true});
-    const snap=await getDocs(query(collection(db,"users"),where("emailLower","==",me.email.toLowerCase()),limit(1)));
-    const existing=snap.empty?null:snap.docs[0].data();
-    if(!existing||!existing.name)await setDoc(doc(db,"users",me.uid),{name:me.name},{merge:true});
-    else me.name=existing.name;
+    const ref=doc(db,"users",me.uid);
+    const snap=await getDoc(ref);
+    const d=snap.exists()?snap.data():{};
+    const patch={};
+    if(d.name)me.name=d.name;else patch.name=me.name;
+    if("email" in d)patch.email=deleteField();
+    if("emailLower" in d)patch.emailLower=deleteField();
+    const t=lsGet("mld-terms",null);
+    if(t&&!d.termsAcceptedAt)patch.termsAcceptedAt=t;
+    if(Object.keys(patch).length)await setDoc(ref,patch,{merge:true});
+    await setDoc(doc(db,"emailIndex",me.email.toLowerCase()),{uid:me.uid},{merge:true});
     await setDoc(doc(db,"chats","saved_"+me.uid),{type:"saved",name:"Messages enregistrés",owner:me.uid,members:[me.uid]},{merge:true});
   }catch(e){toast(errText(e));}
-  startChats();startStories();paintMeBtn();
-});
+  startChats();startStories();startBlocks();paintMeBtn();
+}
+function startBlocks(){
+  if(unsubBlocks)unsubBlocks();
+  unsubBlocks=onSnapshot(query(collection(db,"blocks"),where("blocker","==",me.uid)),snap=>{
+    blockedSet={};
+    snap.docs.forEach(d=>{const b=d.data().blocked;if(b)blockedSet[b]=1;});
+    scheduleRender();renderStories();
+    if(activeChat()){renderComposer();renderMsgs();}
+  },()=>{});
+}
 
 function startChats(){
   if(unsubChats)unsubChats();
@@ -762,7 +855,7 @@ function renderMsgs(){
   const stick=firstLoad||box.scrollHeight-box.scrollTop-box.clientHeight<90;
   box.innerHTML="";
   let lastDay="";
-  msgs.forEach(m=>{
+  (c.type==="groupe"?msgs.filter(m=>m.from===me.uid||!blockedSet[m.from]):msgs).forEach(m=>{
     const dl=dayLabel(m.t);
     if(dl!==lastDay){box.append(h("div",{class:"day"},dl));lastDay=dl;}
     const mine=m.from===me.uid;
@@ -797,6 +890,10 @@ function renderComposer(){
   const c=activeChat();if(!c)return;
   const box=$("#composer");box.innerHTML="";
   if(!canPost(c)){box.append(h("div",{class:"readonly"},"Seul l’administrateur publie dans ce canal."));return;}
+  if(c.type==="perso"&&blockedSet[otherUid(c)]){
+    box.append(h("div",{class:"readonly"},"Tu as bloqué ce contact. ",h("button",{class:"inl",onclick:()=>unblockUser(otherUid(c))},"Débloquer")));
+    return;
+  }
   if(rec){
     box.append(h("div",{class:"recbar"},
       h("button",{class:"icon-btn","aria-label":"Annuler l’enregistrement",html:ico("x"),onclick:cancelRec}),
@@ -854,7 +951,7 @@ async function sendMsg(p){
   try{
     await addDoc(collection(db,"chats",c.id,"messages"),m);
     await updateDoc(doc(db,"chats",c.id),{lastText:preview(m).slice(0,120),lastAt:m.t,lastFrom:me.uid,lastFromName:me.name});
-  }catch(e){toast(errText(e));}
+  }catch(e){toast(c.type==="perso"&&e&&e.code==="permission-denied"?"Message non envoyé : ce contact ne peut pas recevoir tes messages (ou les règles Firebase ne sont pas à jour).":errText(e));}
 }
 
 /* ---------- Photos et vocaux ---------- */
@@ -933,6 +1030,11 @@ function msgMenu(m){
       try{await deleteDoc(doc(db,"chats",c.id,"messages",m.id));}catch(e){toast(errText(e));}
     },true));
   }
+  if(m.from!==me.uid){
+    const nm=userName(m.from,m.fromName);
+    nodes.push(opt("flag","Signaler ce message",()=>reportSheet({kind:"message",uid:m.from,name:nm,chatId:c.id,msgId:m.id,excerpt:preview(m)})));
+    if(c.type==="groupe"&&!blockedSet[m.from])nodes.push(opt("ban","Bloquer "+nm,()=>askBlock(m.from,nm),true));
+  }
   openSheet(nodes);
 }
 function personRow(uid,fb,sub){
@@ -962,6 +1064,11 @@ function chatMenu(){
   const fav=favs.includes(c.id);
   nodes.push(opt("star",fav?"Retirer des favoris":"Ajouter aux favoris",()=>{
     favs=fav?favs.filter(x=>x!==c.id):favs.concat([c.id]);lsSet("mld-fav",favs);renderHead();renderList();}));
+  if(c.type==="perso"){
+    const o=otherUid(c),nm=cname(c);
+    nodes.push(opt("flag","Signaler ce contact",()=>reportSheet({kind:"user",uid:o,name:nm,chatId:c.id})));
+    nodes.push(blockedSet[o]?opt("ban","Débloquer ce contact",()=>unblockUser(o)):opt("ban","Bloquer ce contact",()=>askBlock(o,nm),true));
+  }
   if((c.type==="groupe"||c.type==="canal")&&c.owner===me.uid)nodes.push(opt("cam","Changer la photo",()=>{chatPhotoTarget=c.id;$("#chatPhotoFile").click();}));
   if(c.type==="perso")nodes.push(opt("x","Masquer la conversation",()=>{
     hidden=hidden.concat([c.id]);lsSet("mld-hidden",hidden);
@@ -986,8 +1093,13 @@ $("#chatPhotoFile").addEventListener("change",async e=>{
 
 /* ---------- Nouvelle conversation ---------- */
 async function findUserByEmail(e){
-  const s=await getDocs(query(collection(db,"users"),where("emailLower","==",e.toLowerCase().trim()),limit(1)));
-  return s.empty?null:{uid:s.docs[0].id,...s.docs[0].data()};
+  const em=(e||"").toLowerCase().trim();
+  if(!em||em.indexOf("/")>=0)return null;
+  const idx=await getDoc(doc(db,"emailIndex",em));
+  if(!idx.exists())return null;
+  const uid=idx.data().uid;
+  const u=await getDoc(doc(db,"users",uid));
+  return {uid:uid,...(u.exists()?u.data():{})};
 }
 function newChatSheet(){
   let type="perso";
@@ -1020,6 +1132,7 @@ function newChatSheet(){
         const u=await findUserByEmail(em);
         if(!u){toast("Aucun compte avec cet e-mail. Invite ton ami à s’inscrire d’abord.");return;}
         if(u.uid===me.uid){toast("C’est ta propre adresse.");return;}
+        if(blockedSet[u.uid]){toast("Tu as bloqué cette personne. Débloque-la d’abord dans Paramètres.");return;}
         const id=[me.uid,u.uid].sort().join("_");
         await setDoc(doc(db,"chats",id),{type:"perso",owner:me.uid,members:[me.uid,u.uid],names:{[me.uid]:me.name,[u.uid]:u.name||"Contact"}},{merge:true});
         hidden=hidden.filter(x=>x!==id);lsSet("mld-hidden",hidden);
@@ -1086,7 +1199,7 @@ function startStories(){
 setInterval(()=>{if(me)renderStories();},60000);
 function storyGroups(){
   const n=Date.now(),by={};
-  stories.filter(s=>s.exp>n).forEach(s=>{(by[s.owner]=by[s.owner]||[]).push(s);});
+  stories.filter(s=>s.exp>n&&!blockedSet[s.owner]).forEach(s=>{(by[s.owner]=by[s.owner]||[]).push(s);});
   Object.keys(by).forEach(u=>by[u].sort((a,b)=>a.t-b.t));
   const others=Object.keys(by).filter(u=>u!==me.uid).map(u=>({uid:u,stories:by[u],unseen:by[u].some(s=>!seenSt[s.id])}));
   others.sort((a,b)=>(Number(b.unseen)-Number(a.unseen))||(b.stories[b.stories.length-1].t-a.stories[a.stories.length-1].t));
@@ -1109,7 +1222,7 @@ function renderStories(){
 }
 function contactList(){
   const seen={},out=[];
-  chats.filter(c=>c.type==="perso").forEach(c=>{const u=otherUid(c);if(u&&!seen[u]){seen[u]=1;out.push({uid:u,name:userName(u,c.names&&c.names[u])});}});
+  chats.filter(c=>c.type==="perso").forEach(c=>{const u=otherUid(c);if(u&&!seen[u]&&!blockedSet[u]){seen[u]=1;out.push({uid:u,name:userName(u,c.names&&c.names[u])});}});
   return out;
 }
 function newStorySheet(){
@@ -1256,6 +1369,8 @@ function showStory(){
     const cur=stories.find(x=>x.id===s.id)||s;
     const n=Object.keys(cur.viewers||{}).length;
     foot.append(h("button",{onclick:()=>{box.classList.add("paused");storyViewers(s.id);}},"👁 "+n+" vue"+(n>1?"s":"")));
+  }else{
+    foot.append(h("button",{onclick:()=>{box.classList.add("paused");reportSheet({kind:"story",uid:s.owner,name:userName(s.owner,s.ownerName),storyId:s.id,excerpt:s.caption||s.text||""});}},"Signaler"));
   }
   seenSt[s.id]=1;lsSet("mld-seenst",seenSt);
   if(!own&&settings.readReceipts&&!(s.viewers&&s.viewers[me.uid])){
@@ -1340,7 +1455,10 @@ function openSettings(){
     row("Confirmations de lecture","Affiche « lu » (✓✓) sur tes messages et montre quand tu lis. Si tu les désactives, tu ne vois pas non plus celles des autres.",
       sw("Confirmations de lecture",settings.readReceipts,v=>{settings.readReceipts=v;saveSettings();if(v)maybeMarkRead();})),
     row("Audience de mes stories","Par défaut",seg([["all","Contacts"],["choose","Je choisis"]],settings.storyAudience,v=>{settings.storyAudience=v;saveSettings();})),
-    tapRow("Afficher à nouveau les discussions masquées",hidden.length?hidden.length+" masquée"+(hidden.length>1?"s":""):"Aucune pour l’instant",()=>{hidden=[];lsSet("mld-hidden",hidden);renderList();toast("Discussions réaffichées.");})));
+    tapRow("Afficher à nouveau les discussions masquées",hidden.length?hidden.length+" masquée"+(hidden.length>1?"s":""):"Aucune pour l’instant",()=>{hidden=[];lsSet("mld-hidden",hidden);renderList();toast("Discussions réaffichées.");}),
+    tapRow("Contacts bloqués",Object.keys(blockedSet).length?Object.keys(blockedSet).length+" bloqué"+(Object.keys(blockedSet).length>1?"s":""):"Aucun",blockedSheet),
+    tapRow("Conditions d’utilisation",null,()=>legalSheet("terms")),
+    tapRow("Politique de confidentialité",null,()=>legalSheet("privacy"))));
 
   body.append(sec("Notifications",
     row("Son des nouveaux messages","Quand MLD est ouverte",sw("Son des messages",settings.sound,v=>{settings.sound=v;saveSettings();if(v){unlockAudio();notifyIncoming();}})),
@@ -1359,7 +1477,7 @@ function openSettings(){
   account.push(tapRow("Se déconnecter",null,()=>{closeSettings();signOut(auth);}));
   account.push(tapRow("Supprimer mon compte","Action définitive",deleteAccountSheet,true));
   body.append(sec("Compte",...account));
-  body.append(h("p",{class:"hint",style:"text-align:center;color:var(--muted);font-size:13px"},"MLD · version 2. Les réglages d’apparence, de son et de confidentialité sont enregistrés sur cet appareil."));
+  body.append(h("p",{class:"hint",style:"text-align:center;color:var(--muted);font-size:13px"},"MLD · version 3. Les réglages d’apparence, de son et de confidentialité sont enregistrés sur cet appareil."));
   $("#settings").classList.add("open");
   paintSettingsAvatar();
 }
@@ -1374,6 +1492,7 @@ function deleteAccountSheet(){
       if(inp.value.trim().toUpperCase()!=="SUPPRIMER"){toast("Écris SUPPRIMER pour confirmer.");return;}
       try{
         for(const s of stories.filter(x=>x.owner===me.uid))await deleteDoc(doc(db,"stories",s.id)).catch(()=>{});
+        await deleteDoc(doc(db,"emailIndex",me.email.toLowerCase())).catch(()=>{});
         await deleteDoc(doc(db,"users",me.uid));
         await deleteUser(auth.currentUser);
         closeSheet();closeSettings();
@@ -1391,9 +1510,86 @@ $("#avatarFile").addEventListener("change",async e=>{
   }catch(er){toast(errText(er));}
 });
 
+/* ---------- Blocage, signalement, textes légaux ---------- */
+async function blockUser(uid){
+  try{await setDoc(doc(db,"blocks",me.uid+"_"+uid),{blocker:me.uid,blocked:uid,t:Date.now()});toast("Contact bloqué.");}
+  catch(e){toast(errText(e));}
+}
+async function unblockUser(uid){
+  try{await deleteDoc(doc(db,"blocks",me.uid+"_"+uid));toast("Contact débloqué.");}
+  catch(e){toast(errText(e));}
+}
+function confirmSheet(title,text,label,fn,danger){
+  const b=h("button",{class:"primary",onclick:()=>{closeSheet();fn();}},label);
+  if(danger){b.style.background="var(--danger)";b.style.color="#fff";}
+  openSheet([h("h3",null,title),h("p",{class:"hint"},text),b]);
+}
+function askBlock(uid,name){
+  confirmSheet("Bloquer "+name+" ?","Cette personne ne pourra plus t’écrire en privé. Tu ne verras plus ses messages dans les groupes ni ses stories. Tu pourras la débloquer dans Paramètres.","Bloquer",()=>blockUser(uid),true);
+}
+function blockedSheet(){
+  const ids=Object.keys(blockedSet);
+  const nodes=[h("h3",null,"Contacts bloqués")];
+  if(!ids.length)nodes.push(h("p",{class:"hint"},"Tu n’as bloqué personne."));
+  ids.forEach(u=>{
+    nodes.push(h("div",{class:"chrow"},userAvatar(u,36),h("div",{class:"nm"},h("b",null,userName(u))),
+      h("button",{class:"mini",onclick:async()=>{await unblockUser(u);blockedSheet();}},"Débloquer")));
+  });
+  openSheet(nodes);
+}
+function reportSheet(t){
+  let reason=null;
+  const reasons=["Spam ou arnaque","Harcèlement ou menaces","Contenu choquant ou illégal","Usurpation d’identité","Autre"];
+  const comment=h("input",{type:"text",maxlength:"200",placeholder:"Précisions (facultatif)","aria-label":"Précisions"});
+  const list=h("div",{class:"types"});
+  const go=h("button",{class:"primary"},"Envoyer le signalement");
+  function draw(){
+    list.innerHTML="";
+    reasons.forEach(r=>list.append(h("button",{"aria-pressed":String(reason===r),onclick:()=>{reason=r;draw();}},r)));
+  }
+  go.addEventListener("click",async()=>{
+    if(!reason){toast("Choisis une raison.");return;}
+    go.disabled=true;
+    try{
+      await addDoc(collection(db,"reports"),{reporter:me.uid,reporterName:me.name,reported:t.uid,reportedName:t.name||"",kind:t.kind,chatId:t.chatId||"",msgId:t.msgId||"",storyId:t.storyId||"",excerpt:(t.excerpt||"").slice(0,300),reason:reason,comment:comment.value.trim(),t:Date.now()});
+      closeSheet();toast("Merci, ton signalement a bien été envoyé.");
+    }catch(e){toast(errText(e));go.disabled=false;}
+  });
+  const what=t.kind==="message"?"ce message":t.kind==="story"?"cette story":"ce contact";
+  openSheet([h("h3",null,"Signaler "+what),h("p",{class:"hint"},"Ton signalement est confidentiel. Tu peux aussi bloquer cette personne."),list,h("label",{class:"field"},comment),go]);
+  draw();
+}
+const LEGAL={
+  terms:["Conditions d’utilisation",[
+    ["Le service","MLD est une application de messagerie gratuite, fournie telle quelle, sans garantie de disponibilité ni de conservation des messages."],
+    ["Âge minimum","MLD est réservée aux personnes de 16 ans et plus."],
+    ["Ce qui est interdit","Harcèlement, menaces, haine, contenus sexuels impliquant des mineurs, contenus illégaux ou violents, arnaques, spam, usurpation d’identité et atteinte à la vie privée d’autrui."],
+    ["Ta responsabilité","Tu es responsable de ce que tu envoies. Ne partage pas ton mot de passe."],
+    ["Modération","Tu peux bloquer un contact et signaler un message, un contact ou une story. Les comptes qui enfreignent ces règles peuvent être suspendus ou supprimés."],
+    ["Fin du compte","Tu peux supprimer ton compte à tout moment dans Paramètres."],
+    ["Évolutions","Ces conditions peuvent évoluer. En continuant à utiliser MLD, tu acceptes la version en vigueur."]
+  ]],
+  privacy:["Politique de confidentialité",[
+    ["Données collectées","Adresse e-mail (connexion et recherche d’un ami, jamais visible par les autres), pseudo, photo et « À propos » (visibles par les autres utilisateurs), messages, photos, messages vocaux, stories, confirmations de lecture, liste des contacts bloqués et signalements."],
+    ["Hébergement","Les données sont stockées chez Google (Firebase), sur des serveurs situés aux États-Unis."],
+    ["Chiffrement","Les échanges sont chiffrés pendant le transfert (HTTPS). Les messages ne sont pas chiffrés de bout en bout : l’éditeur de MLD y a techniquement accès et ne les consulte que pour traiter un signalement ou répondre à une obligation légale."],
+    ["Durée de conservation","Les messages sont conservés jusqu’à leur suppression. Les stories disparaissent au bout de 24 h. La suppression du compte efface ton profil et tes stories ; tes anciens messages restent visibles dans les conversations."],
+    ["Partage","MLD ne vend pas tes données et ne contient ni publicité ni outil de mesure d’audience."],
+    ["Tes droits","Tu peux modifier ton profil, bloquer, signaler et supprimer ton compte dans l’application. Pour toute autre demande concernant tes données, contacte l’éditeur de MLD."]
+  ]]
+};
+function legalSheet(k){
+  const t=LEGAL[k],nodes=[h("h3",null,t[0])];
+  t[1].forEach(it=>{nodes.push(h("h5",null,it[0]),h("p",{class:"hint"},it[1]));});
+  openSheet(nodes);
+}
+
 /* ---------- Démarrage ---------- */
 $("#splashLogo").innerHTML=logo(48);
 $("#authLogo").innerHTML=logo(48);
+$("#vLogo").innerHTML=logo(48);
+$("#aTermsLink").addEventListener("click",()=>legalSheet("terms"));
+$("#aPrivLink").addEventListener("click",()=>legalSheet("privacy"));
 $("#brand").innerHTML=logo(26)+"<span>MLD</span>";
 $("#bigLogo").innerHTML=logo(56);
 $("#btnNew").innerHTML=ico("plus");

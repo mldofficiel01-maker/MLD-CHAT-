@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://mldofficiel01-maker.github.io/MLD-CHAT-/sitemap.xml
